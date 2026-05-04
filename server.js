@@ -1,12 +1,28 @@
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
+const PQueue = require('p-queue').default;
 require('dotenv').config();
 
 const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
+
+// ─────────────────────────────────────────────
+// Job Queue — Burst Protection
+// Limits concurrent Zoho + TikTok API calls
+// to prevent server overload during traffic spikes
+// ─────────────────────────────────────────────
+const webhookQueue = new PQueue({ concurrency: 5 });
+
+webhookQueue.on('add', () => {
+    console.log(`📋 Queue size: ${webhookQueue.size} | Active jobs: ${webhookQueue.pending}`);
+});
+
+webhookQueue.on('idle', () => {
+    console.log('✅ Queue is idle — all jobs processed.');
+});
 
 // ─────────────────────────────────────────────
 // ZOHO OAuth2 Token Manager
@@ -136,7 +152,7 @@ async function saveLeadToZoho(data, retried = false) {
         if (searchRes.data?.data?.length > 0) {
             const existingId = searchRes.data.data[0].id;
             console.log(`⏭️  Lead already exists for ${data.phone} | Zoho ID: ${existingId} — skipping.`);
-            return existingId;
+            return { id: existingId, isNew: false };
         }
 
         // ── Step 2: Not found — create new lead ──
@@ -180,7 +196,7 @@ async function saveLeadToZoho(data, retried = false) {
 
         if (result?.status === 'success') {
             console.log(`✅ Lead saved | Zoho ID: ${result.details.id} | Name: ${data.firstName} ${data.lastName} | Phone: ${data.phone}`);
-            return result.details.id;
+            return { id: result.details.id, isNew: true };
         } else {
             console.warn('⚠️  Zoho non-success:', JSON.stringify(result));
             return null;
@@ -265,30 +281,37 @@ app.post('/webhook/whatsapp', async (req, res) => {
     // Always respond 200 immediately — Meta retries if response is slow
     res.sendStatus(200);
 
-    try {
-        console.log('📩 Incoming WhatsApp payload:');
-        console.log(JSON.stringify(req.body, null, 2));
+    const body = req.body;
 
-        const parsed = parseWhatsAppPayload(req.body);
+    // Push all heavy processing into the queue — safe under burst traffic
+    webhookQueue.add(async () => {
+        try {
+            console.log('📩 Incoming WhatsApp payload:');
+            console.log(JSON.stringify(body, null, 2));
 
-        if (!parsed) {
-            console.log('ℹ️  No messages found — likely a status update, skipping.');
-            return;
+            const parsed = parseWhatsAppPayload(body);
+
+            if (!parsed) {
+                console.log('ℹ️  No messages found — likely a status update, skipping.');
+                return;
+            }
+
+            console.log(`📱 From: ${parsed.phone} | Name: ${parsed.fullName} | Type: ${parsed.msgType} | Body: ${parsed.msgBody}`);
+
+            // 1. Save to Zoho CRM
+            const zohoResult = await saveLeadToZoho(parsed);
+
+            // 2. TikTok CAPI (only if configured AND it's a new lead)
+            if (zohoResult?.isNew && process.env.TIKTOK_PIXEL_ID && process.env.TIKTOK_ACCESS_TOKEN) {
+                await sendToTikTokCAPI(hashData(parsed.phone));
+            } else if (!zohoResult?.isNew) {
+                console.log('⏭️  Existing lead — skipping TikTok event to prevent duplication.');
+            }
+
+        } catch (err) {
+            console.error('❌ Webhook processing error:', err.message);
         }
-
-        console.log(`📱 From: ${parsed.phone} | Name: ${parsed.fullName} | Type: ${parsed.msgType} | Body: ${parsed.msgBody}`);
-
-        // 1. Save to Zoho CRM
-        await saveLeadToZoho(parsed);
-
-        // 2. TikTok CAPI (only if configured)
-        if (process.env.TIKTOK_PIXEL_ID && process.env.TIKTOK_ACCESS_TOKEN) {
-            await sendToTikTokCAPI(hashData(parsed.phone));
-        }
-
-    } catch (err) {
-        console.error('❌ Webhook processing error:', err.message);
-    }
+    });
 });
 
 // ─────────────────────────────────────────────
