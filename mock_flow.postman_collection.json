@@ -1,0 +1,73 @@
+{
+	"info": {
+		"_postman_id": "tiktok-whatsapp-mock-flow",
+		"name": "TikTok WhatsApp Lead Flow",
+		"description": "Mock collection to test the TikTok Conversion API + WhatsApp Lead Flow",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Verify Webhook (GET)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:3000/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=YOUR_WHATSAPP_VERIFY_TOKEN&hub.challenge=123456",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"webhook",
+						"whatsapp"
+					],
+					"query": [
+						{
+							"key": "hub.mode",
+							"value": "subscribe"
+						},
+						{
+							"key": "hub.verify_token",
+							"value": "YOUR_WHATSAPP_VERIFY_TOKEN"
+						},
+						{
+							"key": "hub.challenge",
+							"value": "123456"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. Simulate Incoming Message (POST)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"object\": \"whatsapp_business_account\",\n    \"entry\": [\n        {\n            \"id\": \"1054321689\",\n            \"changes\": [\n                {\n                    \"value\": {\n                        \"messaging_product\": \"whatsapp\",\n                        \"metadata\": {\n                            \"display_phone_number\": \"16505551111\",\n                            \"phone_number_id\": \"123456789\"\n                        },\n                        \"contacts\": [\n                            {\n                                \"profile\": {\n                                    \"name\": \"John Doe\"\n                                },\n                                \"wa_id\": \"1234567890\"\n                            }\n                        ],\n                        \"messages\": [\n                            {\n                                \"from\": \"1234567890\",\n                                \"id\": \"wamid.HBgLMTIzNDU2Nzg5MBUCABIYIDRDQzc1NUE0MzY2OEY1RDhCQjYyRThCODY2OTRBNzVFAA==\",\n                                \"timestamp\": \"1662589000\",\n                                \"text\": {\n                                    \"body\": \"I saw your TikTok ad and I am interested!\"\n                                },\n                                \"type\": \"text\"\n                            }\n                        ]\n                    },\n                    \"field\": \"messages\"\n                }\n            ]\n        }\n    ]\n}"
+				},
+				"url": {
+					"raw": "http://localhost:3000/webhook/whatsapp",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"webhook",
+						"whatsapp"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
