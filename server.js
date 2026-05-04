@@ -213,8 +213,8 @@ const hashData = (data) => {
 async function sendToTikTokCAPI(hashedPhone) {
     const payload = {
         event_source_id: process.env.TIKTOK_PIXEL_ID,
-        event_source: 'web',
-        // test_event_code: 'TEST97325',
+        event_source: 'offline',
+        test_event_code: 'TEST02168',
         data: [{
             event: 'Contact',
             event_id: `event_${Date.now()}`,
