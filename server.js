@@ -214,7 +214,7 @@ async function sendToTikTokCAPI(hashedPhone) {
     const payload = {
         event_source_id: process.env.TIKTOK_PIXEL_ID,
         event_source: 'offline',
-        test_event_code: 'TEST02168',
+        // test_event_code: 'TEST02168',
         data: [{
             event: 'Contact',
             event_id: `event_${Date.now()}`,
